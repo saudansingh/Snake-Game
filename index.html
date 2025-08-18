@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gesture Snake Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+    
+    <style>
+        /* All CSS styles are here */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; margin: 20px; background: #f4f7f6; color: #333; }
+        #auth-container { background: white; padding: 25px; border-radius: 12px; max-width: 400px; margin: 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        #game-container { display: none; }
+        #game-area { display: flex; justify-content: center; align-items: flex-start; gap: 20px; margin: 20px auto; max-width: 850px; flex-wrap: wrap; }
+        canvas { border: 3px solid #ddd; background: #000; border-radius: 8px; }
+        webcam { transform: scaleX(-1); /* Flips the webcam for a mirror effect */ }
+        #controls { background: white; padding: 15px; border-radius: 10px; display: inline-block; box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 20px; }
+        button { font-size: 16px; padding: 10px 20px; margin: 5px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; }
+        button:hover:not(:disabled) { background: #45a049; }
+        button:disabled { background: #cccccc; cursor: not-allowed; }
+        #score-display { font-size: 18px; font-weight: bold; margin: 10px; }
+        #player-info { background: #e8f5e9; padding: 10px; border-radius: 8px; margin: 10px auto; max-width: 600px; border: 1px solid #c8e6c9; }
+        #instructions { background: #fff3e0; padding: 10px; border-radius: 8px; margin-top: 20px; display: inline-block; border: 1px solid #ffe0b2;}
+        #status { font-weight: bold; margin: 15px; min-height: 20px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <div id="auth-container">
+        <h2>Player Registration</h2>
+        <form id="auth-form">
+            <input type="text" id="name" placeholder="Your Name" required>
+            <input type="email" id="email" placeholder="Email Address" required>
+            <input type="tel" id="mobile" placeholder="10-digit Mobile Number" required>
+            <button type="submit">Start Game</button>
+        </form>
+    </div>
+
+    <div id="game-container">
+        <h1>Gesture-Controlled Snake Game</h1>
+        <div id="player-info"></div>
+        <div id="controls">
+            <button id="start-btn" disabled>Start Game</button>
+            <button id="speed-up">Faster ⚡</button>
+            <button id="speed-down">Slower 🐢</button>
+            <div id="score-display">Score: <span id="score">0</span> | Speed: <span id="speed">Normal</span></div>
+        </div>
+        <div id="status">Loading...</div>
+        <div id="game-area">
+            <canvas id="game" width="400" height="400"></canvas>
+            <canvas id="webcam" width="400" height="400"></canvas>
+        </div>
+        <div id="instructions">
+            <p>Show these gestures: 👆 Up | 👇 Down | 👈 Left | 👉 Right</p>
+            
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURATION =====
+        const API_URL = "https://sheetdb.io/api/v1/z6sqbddo69exu";  // <-- PASTE YOUR SHEETDB URL HERE
+        const MODEL_ID = "pRmvv8x79/";
+        const modelURL = `https://teachablemachine.withgoogle.com/models/${MODEL_ID}model.json`;
+        const metadataURL = `https://teachablemachine.withgoogle.com/models/${MODEL_ID}metadata.json`;
+
+        // ===== DOM ELEMENTS =====
+        const authForm = document.getElementById('auth-form');
+        const authContainer = document.getElementById('auth-container');
+        const gameContainer = document.getElementById('game-container');
+        const playerInfoDiv = document.getElementById('player-info');
+        const startBtn = document.getElementById('start-btn');
+        const statusDiv = document.getElementById('status');
+        const gameCanvas = document.getElementById('game');
+        const webcamCanvas = document.getElementById('webcam');
+        const gameCtx = gameCanvas.getContext('2d');
+        const webcamCtx = webcamCanvas.getContext('2d');
+
+        // ===== GAME STATE VARIABLES =====
+        let player = {};
+        let snake = [];
+        let food = {};
+        let direction = 'right';
+        let nextDirection = 'right';
+        let score = 0;
+        let speed = 150;
+        let gameLoop;
+        let isRunning = false;
+        let gameStartTime;
+        let model, webcam;
+
+        // ===== AUTHENTICATION =====
+        authForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            player = {
+                name: document.getElementById('name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                mobile: document.getElementById('mobile').value.trim()
+            };
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(player.email)) {
+                alert('Please enter a valid email address');
+                return;
+            }
+            if (!/^\d{10}$/.test(player.mobile)) {
+                alert('Please enter a valid 10-digit mobile number');
+                return;
+            }
+            authContainer.style.display = 'none';
+            gameContainer.style.display = 'block';
+            playerInfoDiv.innerHTML = `<p><strong>Player:</strong> ${player.name} | <strong>Email:</strong> ${player.email}</p>`;
+            setupTeachableMachine();
+        });
+
+        // ===== GESTURE CONTROL SETUP =====
+        async function setupTeachableMachine() {
+            try {
+                statusDiv.textContent = "Loading gesture controls...";
+                model = await tmImage.load(modelURL, metadataURL);
+                webcam = new tmImage.Webcam(400, 400, true);
+                await webcam.setup();
+                await webcam.play();
+                window.requestAnimationFrame(animationLoop);
+                startBtn.disabled = false;
+                statusDiv.textContent = "Gesture controls ready! Click Start Game.";
+                statusDiv.style.color = "green";
+            } catch (error) {
+                console.error("Error loading gesture model:", error);
+                statusDiv.textContent = "Gesture controls failed. Keyboard only.";
+                statusDiv.style.color = "#d32f2f";
+                startBtn.disabled = false;
+            }
+        }
+
+        async function animationLoop() {
+            webcam.update();
+            webcamCtx.drawImage(webcam.canvas, 0, 0);
+            if (isRunning) {
+                await predictGesture();
+            }
+            window.requestAnimationFrame(animationLoop);
+        }
+
+        async function predictGesture() {
+            const prediction = await model.predict(webcam.canvas);
+            let topPrediction = { className: "None", probability: 0 };
+            for (let i = 0; i < prediction.length; i++) {
+                if (prediction[i].probability > topPrediction.probability) {
+                    topPrediction = prediction[i];
+                }
+            }
+            if (topPrediction.probability > 0.9) {
+                if (topPrediction.className === "Up" && direction !== 'down') nextDirection = 'up';
+                if (topPrediction.className === "Down" && direction !== 'up') nextDirection = 'down';
+                if (topPrediction.className === "Left" && direction !== 'right') nextDirection = 'left';
+                if (topPrediction.className === "Right" && direction !== 'left') nextDirection = 'right';
+            }
+        }
+
+        // ===== GAME LOGIC =====
+        function initGame() {
+            const gridSize = 20;
+            snake = [];
+            for (let i = 3; i >= 0; i--) { snake.push({ x: i, y: 10 }); }
+            createFood();
+            score = 0;
+            document.getElementById('score').textContent = '0';
+            direction = 'right';
+            nextDirection = 'right';
+            speed = 150;
+            updateSpeedDisplay();
+            gameStartTime = new Date();
+            statusDiv.textContent = "Game running... Good luck!";
+            statusDiv.style.color = "green";
+        }
+
+        function createFood() {
+            const gridSize = 20;
+            const tileCount = gameCanvas.width / gridSize;
+            food = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+            for (const seg of snake) {
+                if (seg.x === food.x && seg.y === food.y) {
+                    createFood();
+                    return;
+                }
+            }
+        }
+
+        function updateGame() {
+            if (!isRunning) return;
+            const gridSize = 20;
+            const tileCount = gameCanvas.width / gridSize;
+            let head = { x: snake[0].x, y: snake[0].y };
+            direction = nextDirection;
+
+            if (direction === 'up') head.y--;
+            if (direction === 'down') head.y++;
+            if (direction === 'left') head.x--;
+            if (direction === 'right') head.x++;
+
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount || snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+                gameOver();
+                return;
+            }
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                document.getElementById('score').textContent = score;
+                createFood();
+                if (score > 0 && score % 3 === 0 && speed > 50) {
+                    speed -= 10;
+                    updateSpeedDisplay();
+                    clearInterval(gameLoop);
+                    gameLoop = setInterval(updateGame, speed);
+                }
+            } else {
+                snake.pop();
+            }
+            drawGame();
+        }
+
+        function drawGame() {
+            const gridSize = 20;
+            gameCtx.fillStyle = 'black';
+            gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            gameCtx.fillStyle = '#4CAF50';
+            snake.forEach(seg => { gameCtx.fillRect(seg.x * gridSize, seg.y * gridSize, gridSize - 1, gridSize - 1); });
+            gameCtx.fillStyle = '#FF5722';
+            gameCtx.beginPath();
+            gameCtx.arc(food.x * gridSize + gridSize / 2, food.y * gridSize + gridSize / 2, gridSize / 2 - 1, 0, Math.PI * 2);
+            gameCtx.fill();
+        }
+
+        function gameOver() {
+            isRunning = false;
+            clearInterval(gameLoop);
+            statusDiv.textContent = `Game Over! Final Score: ${score}. Click Start to play again.`;
+            statusDiv.style.color = "#d32f2f";
+            saveGameData();
+        }
+
+        function updateSpeedDisplay() {
+            const speedText = speed <= 80 ? 'Very Fast' : speed <= 120 ? 'Fast' : speed <= 160 ? 'Normal' : 'Slow';
+            document.getElementById('speed').textContent = speedText;
+        }
+
+        // ===== EVENT LISTENERS =====
+        startBtn.addEventListener('click', () => {
+            if (isRunning) return;
+            isRunning = true;
+            initGame();
+            drawGame(); // Draw the initial state immediately
+            gameLoop = setInterval(updateGame, speed);
+        });
+
+        document.getElementById('speed-up').addEventListener('click', () => {
+            speed = Math.max(50, speed - 25);
+            updateSpeedDisplay();
+            if (isRunning) {
+                clearInterval(gameLoop);
+                gameLoop = setInterval(updateGame, speed);
+            }
+        });
+
+        document.getElementById('speed-down').addEventListener('click', () => {
+            speed = Math.min(300, speed + 25);
+            updateSpeedDisplay();
+            if (isRunning) {
+                clearInterval(gameLoop);
+                gameLoop = setInterval(updateGame, speed);
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (!isRunning) return;
+            const key = e.key.toLowerCase();
+            if ((key === 'arrowup' || key === 'w') && direction !== 'down') nextDirection = 'up';
+            if ((key === 'arrowdown' || key === 's') && direction !== 'up') nextDirection = 'down';
+            if ((key === 'arrowleft' || key === 'a') && direction !== 'right') nextDirection = 'left';
+            if ((key === 'arrowright' || key === 'd') && direction !== 'left') nextDirection = 'right';
+        });
+
+        // ===== SAVE DATA FUNCTION =====
+        async function saveGameData() {
+            if (!player.name) return; // Don't save if no player data
+            const gameDuration = Math.round((new Date() - gameStartTime) / 1000);
+            const speedText = speed <= 80 ? 'Very Fast' : speed <= 120 ? 'Fast' : speed <= 160 ? 'Normal' : 'Slow';
+            const payload = {
+                Timestamp: "DATETIME",
+                Name: player.name,
+                Email: player.email,
+                Mobile: player.mobile,
+                Score: score,
+                "Duration (s)": gameDuration,
+                "Final Speed": speedText
+            };
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: [payload] })
+                });
+                console.log("Game data saved successfully.");
+            } catch (error) {
+                console.error("Error saving game data:", error);
+            }
+        }
+    </script>
+</body>
+</html>
