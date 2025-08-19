@@ -56,7 +56,7 @@
     </div>
 
     <script>
-        // ===== CONFIGURATION (MODIFIED) =====
+        // ===== CONFIGURATION =====
         const API_URL = "https://sheetdb.io/api/v1/z6sqbddo69exu";  // <-- PASTE YOUR SHEETDB URL HERE
         const DEFAULT_MODEL_ID = "pRmvv8x79/"; // Your default model
         let modelURL;
@@ -87,7 +87,7 @@
         let gameStartTime;
         let model, webcam;
 
-        // ===== AUTHENTICATION (MODIFIED) =====
+        // ===== AUTHENTICATION =====
         authForm.addEventListener('submit', function(e) {
             e.preventDefault();
             player = {
@@ -104,19 +104,15 @@
                 return;
             }
 
-            // NEW LOGIC TO HANDLE CUSTOM MODEL ID
             const customModelId = document.getElementById('model-id').value.trim();
-            let finalModelId = DEFAULT_MODEL_ID; // Start with the default
+            let finalModelId = DEFAULT_MODEL_ID; 
 
             if (customModelId) {
-                // If user provided an ID, use it. Add a trailing slash if missing.
                 finalModelId = customModelId.endsWith('/') ? customModelId : customModelId + '/';
             }
 
-            // Construct the final URLs
             modelURL = `https://teachablemachine.withgoogle.com/models/${finalModelId}model.json`;
             metadataURL = `https://teachablemachine.withgoogle.com/models/${finalModelId}metadata.json`;
-            // END OF NEW LOGIC
 
             authContainer.style.display = 'none';
             gameContainer.style.display = 'block';
@@ -140,7 +136,7 @@
                 console.error("Error loading gesture model:", error);
                 statusDiv.textContent = "Gesture controls failed. Check Model ID or camera permissions.";
                 statusDiv.style.color = "#d32f2f";
-                startBtn.disabled = false; // Still allow starting with keyboard
+                startBtn.disabled = false;
             }
         }
 
@@ -279,14 +275,7 @@
             }
         });
 
-        document.addEventListener('keydown', (e) => {
-            if (!isRunning) return;
-            const key = e.key.toLowerCase();
-            if ((key === 'arrowup' || key === 'w') && direction !== 'down') nextDirection = 'up';
-            if ((key === 'arrowdown' || key === 's') && direction !== 'up') nextDirection = 'down';
-            if ((key === 'arrowleft' || key === 'a') && direction !== 'right') nextDirection = 'left';
-            if ((key === 'arrowright' || key === 'd') && direction !== 'left') nextDirection = 'right';
-        });
+        // <-- KEYBOARD CONTROL EVENT LISTENER REMOVED FROM HERE
 
         // ===== SAVE DATA FUNCTION =====
         async function saveGameData() {
