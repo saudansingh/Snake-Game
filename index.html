@@ -31,6 +31,7 @@
             <input type="text" id="name" placeholder="Your Name" required>
             <input type="email" id="email" placeholder="Email Address" required>
             <input type="tel" id="mobile" placeholder="10-digit Mobile Number" required>
+            <input type="text" id="model-id" placeholder="Optional: Your Teachable Machine Model ID">
             <button type="submit">Start Game</button>
         </form>
     </div>
@@ -41,7 +42,6 @@
         <div id="controls">
             <button id="start-btn" disabled>Start Game</button>
             <button id="speed-up">Faster ⚡</button>
-            <button id="speed-down">Slower 🐢</button>
             <div id="score-display">Score: <span id="score">0</span> | Speed: <span id="speed">Normal</span></div>
         </div>
         <div id="status">Loading...</div>
@@ -56,11 +56,11 @@
     </div>
 
     <script>
-        // ===== CONFIGURATION =====
+        // ===== CONFIGURATION (MODIFIED) =====
         const API_URL = "https://sheetdb.io/api/v1/z6sqbddo69exu";  // <-- PASTE YOUR SHEETDB URL HERE
-        const MODEL_ID = "pRmvv8x79/";
-        const modelURL = `https://teachablemachine.withgoogle.com/models/${MODEL_ID}model.json`;
-        const metadataURL = `https://teachablemachine.withgoogle.com/models/${MODEL_ID}metadata.json`;
+        const DEFAULT_MODEL_ID = "pRmvv8x79/"; // Your default model
+        let modelURL;
+        let metadataURL;
 
         // ===== DOM ELEMENTS =====
         const authForm = document.getElementById('auth-form');
@@ -87,7 +87,7 @@
         let gameStartTime;
         let model, webcam;
 
-        // ===== AUTHENTICATION =====
+        // ===== AUTHENTICATION (MODIFIED) =====
         authForm.addEventListener('submit', function(e) {
             e.preventDefault();
             player = {
@@ -103,6 +103,21 @@
                 alert('Please enter a valid 10-digit mobile number');
                 return;
             }
+
+            // NEW LOGIC TO HANDLE CUSTOM MODEL ID
+            const customModelId = document.getElementById('model-id').value.trim();
+            let finalModelId = DEFAULT_MODEL_ID; // Start with the default
+
+            if (customModelId) {
+                // If user provided an ID, use it. Add a trailing slash if missing.
+                finalModelId = customModelId.endsWith('/') ? customModelId : customModelId + '/';
+            }
+
+            // Construct the final URLs
+            modelURL = `https://teachablemachine.withgoogle.com/models/${finalModelId}model.json`;
+            metadataURL = `https://teachablemachine.withgoogle.com/models/${finalModelId}metadata.json`;
+            // END OF NEW LOGIC
+
             authContainer.style.display = 'none';
             gameContainer.style.display = 'block';
             playerInfoDiv.innerHTML = `<p><strong>Player:</strong> ${player.name} | <strong>Email:</strong> ${player.email}</p>`;
@@ -123,13 +138,14 @@
                 statusDiv.style.color = "green";
             } catch (error) {
                 console.error("Error loading gesture model:", error);
-                statusDiv.textContent = "Gesture controls failed. Keyboard only.";
+                statusDiv.textContent = "Gesture controls failed. Check Model ID or camera permissions.";
                 statusDiv.style.color = "#d32f2f";
-                startBtn.disabled = false;
+                startBtn.disabled = false; // Still allow starting with keyboard
             }
         }
 
         async function animationLoop() {
+            if (!webcam) return;
             webcam.update();
             webcamCtx.drawImage(webcam.canvas, 0, 0);
             if (isRunning) {
@@ -139,6 +155,7 @@
         }
 
         async function predictGesture() {
+            if (!model) return;
             const prediction = await model.predict(webcam.canvas);
             let topPrediction = { className: "None", probability: 0 };
             for (let i = 0; i < prediction.length; i++) {
@@ -164,7 +181,7 @@
             document.getElementById('score').textContent = '0';
             direction = 'right';
             nextDirection = 'right';
-            speed = 150;
+            speed = 300;
             updateSpeedDisplay();
             gameStartTime = new Date();
             statusDiv.textContent = "Game running... Good luck!";
@@ -255,15 +272,6 @@
 
         document.getElementById('speed-up').addEventListener('click', () => {
             speed = Math.max(50, speed - 25);
-            updateSpeedDisplay();
-            if (isRunning) {
-                clearInterval(gameLoop);
-                gameLoop = setInterval(updateGame, speed);
-            }
-        });
-
-        document.getElementById('speed-down').addEventListener('click', () => {
-            speed = Math.min(300, speed + 25);
             updateSpeedDisplay();
             if (isRunning) {
                 clearInterval(gameLoop);
