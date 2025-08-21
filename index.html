@@ -31,6 +31,7 @@
             <input type="text" id="name" placeholder="Your Name" required>
             <input type="email" id="email" placeholder="Email Address" required>
             <input type="tel" id="mobile" placeholder="10-digit Mobile Number" required>
+            <input type="text" id="subjects" placeholder="Your Subject(s)" required>
             <input type="text" id="model-id" placeholder="Optional: Your Teachable Machine Model ID">
             <button type="submit">Start Game</button>
         </form>
@@ -51,7 +52,6 @@
         </div>
         <div id="instructions">
             <p>Show these gestures: 👆 Up | 👇 Down | 👈 Left | 👉 Right</p>
-            
         </div>
     </div>
 
@@ -90,11 +90,15 @@
         // ===== AUTHENTICATION =====
         authForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            
             player = {
                 name: document.getElementById('name').value.trim(),
                 email: document.getElementById('email').value.trim(),
-                mobile: document.getElementById('mobile').value.trim()
+                mobile: document.getElementById('mobile').value.trim(),
+                // MODIFIED: Get subjects from the new text input
+                subjects: document.getElementById('subjects').value.trim() 
             };
+
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(player.email)) {
                 alert('Please enter a valid email address');
                 return;
@@ -262,7 +266,7 @@
             if (isRunning) return;
             isRunning = true;
             initGame();
-            drawGame(); // Draw the initial state immediately
+            drawGame(); 
             gameLoop = setInterval(updateGame, speed);
         });
 
@@ -275,11 +279,9 @@
             }
         });
 
-        // <-- KEYBOARD CONTROL EVENT LISTENER REMOVED FROM HERE
-
         // ===== SAVE DATA FUNCTION =====
         async function saveGameData() {
-            if (!player.name) return; // Don't save if no player data
+            if (!player.name) return;
             const gameDuration = Math.round((new Date() - gameStartTime) / 1000);
             const speedText = speed <= 80 ? 'Very Fast' : speed <= 120 ? 'Fast' : speed <= 160 ? 'Normal' : 'Slow';
             const payload = {
@@ -287,6 +289,7 @@
                 Name: player.name,
                 Email: player.email,
                 Mobile: player.mobile,
+                Subjects: player.subjects,
                 Score: score,
                 "Duration (s)": gameDuration,
                 "Final Speed": speedText
