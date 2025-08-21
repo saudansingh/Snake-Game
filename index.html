@@ -57,7 +57,7 @@
 
     <script>
         // ===== CONFIGURATION =====
-        const API_URL = "https://sheetdb.io/api/v1/z6sqbddo69exu";  // <-- PASTE YOUR SHEETDB URL HERE
+        const API_URL = "https://script.google.com/macros/s/AKfycbym-CCRg6yFytI2GxAEMcf0if5Wa5ltjtv6Wq7aHp5ToP5PnNOiEMO685Xd7kaLkA25/exec";  // <-- PASTE YOUR SHEETDB URL HERE
         const DEFAULT_MODEL_ID = "pRmvv8x79/"; // Your default model
         let modelURL;
         let metadataURL;
@@ -281,30 +281,31 @@
 
         // ===== SAVE DATA FUNCTION =====
         async function saveGameData() {
-            if (!player.name) return;
-            const gameDuration = Math.round((new Date() - gameStartTime) / 1000);
-            const speedText = speed <= 80 ? 'Very Fast' : speed <= 120 ? 'Fast' : speed <= 160 ? 'Normal' : 'Slow';
-            const payload = {
-                Timestamp: "DATETIME",
-                Name: player.name,
-                Email: player.email,
-                Mobile: player.mobile,
-                Subjects: player.subjects,
-                Score: score,
-                "Duration (s)": gameDuration,
-                "Final Speed": speedText
-            };
-            try {
-                await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: [payload] })
-                });
-                console.log("Game data saved successfully.");
-            } catch (error) {
-                console.error("Error saving game data:", error);
-            }
-        }
+    if (!player.name) return;
+    const gameDuration = Math.round((new Date() - gameStartTime) / 1000);
+    const speedText = speed <= 80 ? 'Very Fast' : speed <= 120 ? 'Fast' : speed <= 160 ? 'Normal' : 'Slow';
+
+    const payload = {
+        Name: player.name,
+        Email: player.email,
+        Mobile: player.mobile,
+        Subjects: player.subjects,
+        Score: score,
+        "Duration (s)": gameDuration,
+        "Final Speed": speedText
+    };
+
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload) 
+        });
+        console.log("Game data saved successfully via Apps Script.");
+    } catch (error) {
+        console.error("Error saving game data via Apps Script:", error);
+    }
+}
     </script>
 </body>
 </html>
